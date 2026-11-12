@@ -31,7 +31,7 @@ const has = <T,>(a?: T[]) => Array.isArray(a) && a.length > 0;
       {b.name && <h1>{b.name}</h1>}
       {b.label && <p class="cv-label">{b.label}</p>}
       <ul class="cv-contact">
-        {loc && <li>{loc}</li>}
+        {loc && <li><span><Icon name="map-pin" />{loc}</span></li>}
         {b.email && <li><a href={`mailto:${b.email}`}><Icon name="email" />{b.email}</a></li>}
         {b.phone && <li>{b.phone}</li>}
         {site && <li><a href={site} {...ext}><Icon name="web" />{displayUrl(site)}</a></li>}

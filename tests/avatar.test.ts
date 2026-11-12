@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { createAvatarClient, gravatarHash } from '../src/lib/avatar';
+import { createAvatarClient, fetchablePhotoUrl, gravatarHash } from '../src/lib/avatar';
 
 const png = new Uint8Array(new ArrayBuffer(7)); png.set([137, 80, 78, 71, 1, 2, 3]);
 const base = () => 'https://grav.test';
@@ -68,5 +68,71 @@ describe('avatar client', () => {
     c.refresh(); t = 200;
     await c.get('a@b.co');
     expect(calls).toHaveLength(3);
+  });
+});
+
+describe('fetchablePhotoUrl', () => {
+  const allowed = (address: string) => fetchablePhotoUrl(address, 'https://grav.test') !== null;
+
+  it('allows https Gravatar addresses, including its numbered and named subdomains', () => {
+    for (const ok of [
+      'https://gravatar.com/avatar/abc', 'https://1.gravatar.com/avatar/abc?s=200&d=mp',
+      'https://secure.gravatar.com/avatar/abc', 'https://www.GRAVATAR.com/avatar/abc',
+    ]) expect(allowed(ok), ok).toBe(true);
+  });
+
+  it('allows the origin set as GRAVATAR_BASE_URL', () => {
+    expect(allowed('https://grav.test/avatar/abc')).toBe(true);
+    expect(fetchablePhotoUrl('http://localhost:9999/avatar/abc', 'http://localhost:9999')).not.toBeNull();
+  });
+
+  it('refuses every other address, so gist content can never steer the server to a host of its choosing', () => {
+    for (const bad of [
+      'http://gravatar.com/avatar/abc',                 // not https
+      'https://example.com/me.png',
+      'https://notgravatar.com/avatar/abc',             // lookalikes
+      'https://gravatar.com.evil.example/avatar/abc',
+      'https://evil.example/gravatar.com/avatar/abc',
+      'https://gravatar.com@evil.example/avatar/abc',   // userinfo trick: the real host is evil.example
+      'https://user:pw@gravatar.com/avatar/abc',
+      'https://grav.test:8443/avatar/abc',              // other port on the configured host
+      'http://localhost:4321/x', 'http://127.0.0.1/x', 'http://169.254.169.254/latest/meta-data/', 'https://[::1]/x',
+      'file:///etc/passwd', 'javascript:alert(1)', 'data:image/png;base64,AAAA', 'not a url', '',
+    ]) expect(allowed(bad), bad).toBe(false);
+  });
+});
+
+describe('avatar client: photo addresses', () => {
+  const address = 'https://1.gravatar.com/avatar/abc123?s=200&d=mp';
+
+  it('fetches an allowed address exactly as given and inlines it', async () => {
+    const { c, calls } = client(() => img());
+    expect(await c.getUrl(address)).toBe(`data:image/png;base64,${Buffer.from(png).toString('base64')}`);
+    expect(calls).toEqual([address]);
+  });
+
+  it('refuses other addresses without making any request', async () => {
+    const { c, calls } = client(() => img());
+    expect(await c.getUrl('https://example.com/me.png')).toBeNull();
+    expect(await c.getUrl('http://169.254.169.254/latest/meta-data/')).toBeNull();
+    expect(await c.getUrl(undefined)).toBeNull();
+    expect(await c.getUrl('')).toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('caches per address, separately from the email lookup', async () => {
+    const { c, calls } = client(() => img());
+    await c.getUrl(address); await c.getUrl(address);
+    expect(calls).toHaveLength(1);
+    await c.get('a@b.co');
+    expect(calls).toHaveLength(2);
+    await c.getUrl('https://2.gravatar.com/avatar/other');
+    expect(calls).toHaveLength(3);
+  });
+
+  it('applies the same type and size limits as the email lookup', async () => {
+    expect(await client(() => img('text/html')).c.getUrl(address)).toBeNull();
+    expect(await client(() => img('image/png', new Uint8Array(200_001))).c.getUrl(address)).toBeNull();
+    expect(await client(() => { throw new Error('offline'); }).c.getUrl(address)).toBeNull();
   });
 });
