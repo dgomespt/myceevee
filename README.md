@@ -80,8 +80,9 @@ Restart after editing `.env`; it is only read at startup.
 | `AVATAR_CACHE_TTL` | `1d` | how long the Gravatar photo is cached |
 | `DATABASE_PATH` | `./data/myceevee.db` (`/data/...` in Docker) | SQLite file holding visibility and short links |
 | `TRUST_PROXY` | unset | set to `1` behind your own reverse proxy so client addresses come from `X-Forwarded-For` |
-| `HOST`, `PORT` | `0.0.0.0` (all interfaces), `4321` | where the production server listens; set `HOST=127.0.0.1` to keep it reachable only from this machine |
+| `HOST`, `PORT` | `0.0.0.0` (all interfaces), `4321` (`8080` in the Docker image) | where the production server listens; set `HOST=127.0.0.1` to keep it reachable only from this machine |
 | `HOST_PORT` | `4321` | Docker only: the port published on the host |
+| `CONTAINER_USER` | `1000:1000` | Docker Compose only: the `uid:gid` the container runs as; `./data` must be writable by it (use your own, e.g. `1001:1001`) |
 | `GITHUB_TOKEN` | unset | optional, raises GitHub's API rate limit |
 | `GITHUB_API_URL`, `GRAVATAR_BASE_URL` | GitHub / Gravatar | overrides, mainly for tests or GitHub Enterprise |
 
@@ -135,13 +136,17 @@ Every push to `main` and every `v*` tag publishes an image to GitHub's container
 [Continuous integration](#continuous-integration)), so you can skip building it yourself:
 
 ```bash
-docker run -d -p 4321:4321 --env-file .env -e DATABASE_PATH=/data/myceevee.db -v "$PWD/data:/data" \
+docker run -d -p 8080:8080 --env-file .env -e DATABASE_PATH=/data/myceevee.db -v "$PWD/data:/data" \
   ghcr.io/<owner>/<repo>:latest
 ```
 
 Use a version tag (`:1.2.3`) instead of `:latest` to pin a release. The `-e DATABASE_PATH` is needed because `.env`
 points it at a path that only makes sense outside the container. New packages on ghcr.io start out private: if you want
 others to pull the image without logging in, set the package to public once under the package's settings on GitHub.
+
+The image listens on port 8080 (override with `-e PORT=...`) and runs as the non-root `node` user (UID 1000). To run it
+as another user, add `--user <uid>:<gid>`; `/data` in the image is writable by any UID, but a bind-mounted host
+directory must be writable by that user.
 
 ## Using the admin page
 

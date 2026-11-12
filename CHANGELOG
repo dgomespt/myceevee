@@ -1,4 +1,5 @@
 ## Unreleased
+- The Docker image now listens on port 8080 instead of 4321 (the Astro dev port), and can run as any non-root user (`--user <uid>:<gid>`). `docker-compose.yml` still publishes `HOST_PORT` (default 4321) on the host, and runs as `CONTAINER_USER` (default `1000:1000`).
 - Node and npm tooling now runs in a `node:24` container, so the host only needs `make` and Docker. Adds `make lint`, `make lock` and `make npm ARGS="..."`.
 - CI publishes the container image to ghcr.io: `latest` and `sha-<commit>` from `main`, version tags from `v*` tags. Pull requests only build it.
 - Ignore the npm download cache (`.npm-cache`); remove a stray `.pkg.bak` file.

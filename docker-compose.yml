@@ -2,8 +2,10 @@ services:
   myceevee:
     build: .
     restart: unless-stopped
+    # Any non-root UID:GID works; ./data must be writable by it (e.g. CONTAINER_USER="$(id -u):$(id -g)" in .env)
+    user: "${CONTAINER_USER:-1000:1000}"
     ports:
-      - "${HOST_PORT:-4321}:4321"
+      - "${HOST_PORT:-4321}:8080"
     env_file: .env
     environment:
       DATABASE_PATH: /data/myceevee.db
