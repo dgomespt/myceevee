@@ -1,0 +1,30 @@
+---
+import CvView from '../../components/CvView.astro';
+import Landing from '../../components/Landing.astro';
+import Unavailable from '../../components/Unavailable.astro';
+import { getDb } from '../../lib/db';
+import { publicKeys, resolveLink } from '../../lib/links';
+import { clientKey, linkLimiter } from '../../lib/ratelimit';
+import { loadCv } from '../../lib/gist';
+import { loadLanding } from '../../lib/landing';
+
+const { token } = Astro.params;
+const limited = !linkLimiter.allow(clientKey(Astro.request, Astro.clientAddress));
+const cvKey = !limited && token ? resolveLink(getDb(), token) : null;
+
+const loaded = cvKey ? await loadCv(cvKey) : null;
+// Unknown, expired and revoked links all look the same: show the homepage, with a short note.
+const dead = !limited && !cvKey;
+const profile = dead ? await loadLanding() : null;
+
+if (limited) Astro.response.status = 429;
+else if (!cvKey) Astro.response.status = 410;
+else if (loaded) Astro.response.status = loaded.status;
+---
+{limited ? (
+  <Unavailable title="Too many requests" message="Please wait a minute and try again." />
+) : cvKey ? (
+  <CvView cvKey={cvKey} result={loaded!.result} private />
+) : (
+  <Landing profile={profile} cvs={publicKeys(getDb())} notice="This link has expired or is no longer available." private />
+)}

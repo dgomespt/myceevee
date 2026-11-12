@@ -1,0 +1,11 @@
+---
+import Base from '../layouts/Base.astro';
+interface Props { title: string; message?: string }
+const { title, message } = Astro.props;
+---
+<Base title={title} private>
+  <main class="page">
+    <h1>{title}</h1>
+    {message && <p>{message}</p>}
+  </main>
+</Base>

@@ -1,0 +1,14 @@
+---
+import CvView from '../../components/CvView.astro';
+import Unavailable from '../../components/Unavailable.astro';
+import { getDb } from '../../lib/db';
+import { isPublic } from '../../lib/links';
+import { isCvKey } from '../../lib/config';
+import { loadCv } from '../../lib/gist';
+
+const { key } = Astro.params;
+const cvKey = isCvKey(key) && isPublic(getDb(), key) ? key : null;
+const loaded = cvKey ? await loadCv(cvKey) : null;
+Astro.response.status = loaded ? loaded.status : 404;
+---
+{cvKey && loaded ? <CvView cvKey={cvKey} result={loaded.result} /> : <Unavailable title="Not found" />}

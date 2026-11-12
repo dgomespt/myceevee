@@ -1,0 +1,208 @@
+---
+import Base from '../../layouts/Base.astro';
+import Icon from '../../components/Icon.astro';
+import Logo from '../../components/Logo.astro';
+import { getDb } from '../../lib/db';
+import { gist } from '../../lib/gist';
+import { avatar } from '../../lib/avatar';
+import { CV_KEYS, CV_LABELS, config, isCvKey } from '../../lib/config';
+import { createLink, isPublic, listActiveLinks, pruneLinks, revokeLink, setPublic } from '../../lib/links';
+import { formatDuration, parseTtlSeconds, remaining } from '../../lib/duration';
+
+const db = getDb();
+let created: { url: string; cvKey: string; expiresAt: number } | null = null;
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  const cvKey = String(form.get('cv') ?? '');
+
+  if (action === 'visibility' && isCvKey(cvKey)) {
+    setPublic(db, cvKey, form.get('public') === '1');
+    return Astro.redirect('/admin', 303);
+  }
+  if (action === 'revoke') {
+    revokeLink(db, String(form.get('hash') ?? ''));
+    return Astro.redirect('/admin', 303);
+  }
+  if (action === 'refresh') {
+    gist.refresh();
+    avatar.refresh();
+    return Astro.redirect('/admin', 303);
+  }
+  if (action === 'create' && isCvKey(cvKey)) {
+    const ttl = parseTtlSeconds(String(form.get('ttl') ?? ''), String(form.get('custom') ?? ''));
+    if (ttl === null) {
+      error = 'Enter a valid lifetime (more than 0 and at most 365 days).';
+    } else {
+      const { token, expiresAt } = createLink(db, { cvKey, ttlSeconds: ttl, label: String(form.get('label') ?? '').slice(0, 80) });
+      created = { url: `${config.baseUrl}/s/${token}`, cvKey, expiresAt };
+    }
+  }
+}
+
+pruneLinks(db);
+const links = listActiveLinks(db);
+const statuses = await Promise.all(CV_KEYS.map(async (k) => ({ key: k, result: await gist.load(k) })));
+const fmt = (ms: number) => new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+---
+<Base title="myceevee admin" private>
+  <main class="page admin">
+    <header class="admin-head">
+      <h1 class="brand"><Logo />myceevee</h1>
+      <form method="post" action="/admin/logout"><button type="submit" class="secondary">Sign out</button></form>
+    </header>
+
+    {!config.gistId && <p class="error" role="alert">GIST_ID is not set, so no CV can be shown.</p>}
+    {error && <p class="error" role="alert">{error}</p>}
+
+    {created && (
+      <section class="card highlight" aria-live="polite" data-link-card>
+        <button type="button" class="card-close" data-close aria-label="Close" aria-disabled="true" aria-describedby="close-hint" hidden><Icon name="close" /></button>
+        <h2>Link created</h2>
+        <p>Copy it now: for security only a hash is stored, so it can't be shown again.</p>
+        <div class="copy-row">
+          <input class="copy" id="new-link" readonly value={created.url} onfocus="this.select()" aria-label="Short link" />
+          <button type="button" class="icon-btn" data-copy-from="new-link" aria-label="Copy link" title="Copy link" hidden>
+            <span class="when-idle"><Icon name="copy" /></span>
+            <span class="when-copied"><Icon name="check" /></span>
+          </button>
+          <span class="copy-status muted" role="status" aria-live="polite"></span>
+        </div>
+        <p class="muted">{CV_LABELS[created.cvKey as keyof typeof CV_LABELS]}, expires {fmt(created.expiresAt)} ({remaining(created.expiresAt)})</p>
+        <p id="close-hint" class="muted" data-close-hint hidden>Copy the link to close this box.</p>
+      </section>
+    )}
+
+    <section class="card">
+      <h2>Visibility</h2>
+      {statuses.map(({ key, result }) => {
+        const pub = isPublic(db, key);
+        return (
+          <div class="row">
+            <div>
+              <strong>{CV_LABELS[key]}</strong>
+              {pub && <a class="view-link" href={`/cv/${key}`}>view</a>}
+              {result.ok && result.derived && (
+                <p class="muted">Built from {result.derived.from}: {result.derived.spec}</p>
+              )}
+              {!result.ok && <p class="error">{result.error}</p>}
+              {result.ok && result.warnings.length > 0 && (
+                <details><summary class="muted">{result.warnings.length} schema warning(s)</summary>
+                  <ul>{result.warnings.slice(0, 20).map((w) => <li>{w}</li>)}</ul></details>
+              )}
+            </div>
+            <form method="post">
+              <input type="hidden" name="action" value="visibility" />
+              <input type="hidden" name="cv" value={key} />
+              <input type="hidden" name="public" value={pub ? '0' : '1'} />
+              <button type="submit" class="switch" role="switch" aria-checked={pub ? 'true' : 'false'} aria-label={`${CV_LABELS[key]}: public`}>
+                <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+                <span class="switch-text" aria-hidden="true">{pub ? 'Public' : 'Private'}</span>
+              </button>
+            </form>
+          </div>
+        );
+      })}
+      <form method="post" class="inline">
+        <input type="hidden" name="action" value="refresh" />
+        <button type="submit" class="secondary with-icon"><Icon name="refresh" />Refresh from gist</button>
+        <span class="muted">Cached: gist for {formatDuration(config.gistCacheMs)}, photo for {formatDuration(config.avatarCacheMs)}.</span>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>New short link</h2>
+      <form method="post" class="stack">
+        <input type="hidden" name="action" value="create" />
+        <label>CV
+          <select name="cv" id="new-link-cv">{CV_KEYS.map((k) => <option value={k}>{CV_LABELS[k]}</option>)}</select>
+        </label>
+        <label>Expires after
+          <select name="ttl">
+            <option value="24">1 day</option>
+            <option value="72">3 days</option>
+            <option value="168" selected>7 days</option>
+            <option value="720">30 days</option>
+          </select>
+        </label>
+        <label>…or custom (hours) <input type="number" name="custom" min="0.01" step="any" placeholder="overrides the above" /></label>
+        <label>Label (optional) <input type="text" name="label" maxlength="80" placeholder="e.g. Acme recruiter" /></label>
+        <button type="submit">Create link</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Active links</h2>
+      {links.length === 0 ? <p class="muted">None.</p> : (
+        <ul class="plain">
+          {links.map((l) => (
+            <li class="row">
+              <div>
+                <strong>{l.label ?? 'Untitled'}</strong> <span class="muted">· {CV_LABELS[l.cv_key]}</span><br />
+                <span class="muted">expires {fmt(l.expires_at)} ({remaining(l.expires_at)})</span>
+              </div>
+              <form method="post">
+                <input type="hidden" name="action" value="revoke" />
+                <input type="hidden" name="hash" value={l.token_hash} />
+                <button type="submit" class="secondary">Revoke</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  </main>
+</Base>
+
+<script>
+  import { copyText, coversWholeValue } from '../../scripts/copy';
+
+  // Progressive enhancement: the copy and Close buttons are hidden until JS is running. Without JS the card simply
+  // stays on the page, and the field is still click-to-select.
+  document.querySelectorAll<HTMLElement>('[data-link-card]').forEach((card) => {
+    const input = card.querySelector<HTMLInputElement>('input.copy');
+    const copyBtn = card.querySelector<HTMLButtonElement>('[data-copy-from]');
+    const closeBtn = card.querySelector<HTMLButtonElement>('[data-close]');
+    const closeHint = card.querySelector<HTMLElement>('[data-close-hint]');
+    const status = card.querySelector<HTMLElement>('.copy-status');
+    if (!input || !copyBtn) return;
+
+    let copied = false;
+    const markCopied = () => {
+      copied = true;
+      if (closeBtn) closeBtn.setAttribute('aria-disabled', 'false');
+      if (closeHint) closeHint.hidden = true;
+    };
+
+    copyBtn.hidden = false;
+    if (closeBtn) closeBtn.hidden = false;
+    if (closeHint) closeHint.hidden = false;
+
+    // Copying by hand (select + Ctrl+C) counts too, but only if the whole link was selected.
+    input.addEventListener('copy', () => {
+      if (coversWholeValue(input.selectionStart, input.selectionEnd, input.value.length)) markCopied();
+    });
+
+    let timer: number | undefined;
+    copyBtn.addEventListener('click', async () => {
+      const ok = await copyText(input.value, {
+        clipboard: navigator.clipboard,
+        legacy: () => { input.select(); return document.execCommand('copy'); },
+      });
+      if (!ok) input.select(); // nothing worked: leave it selected so Ctrl+C does
+      else markCopied();
+      copyBtn.dataset.state = ok ? 'copied' : '';
+      if (status) status.textContent = ok ? 'Copied' : 'Press Ctrl+C to copy';
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => { copyBtn.dataset.state = ''; if (status) status.textContent = ''; }, 2000);
+    });
+
+    closeBtn?.addEventListener('click', () => {
+      if (!copied) return; // aria-disabled buttons still receive clicks, so the guard lives here
+      card.hidden = true;
+      document.getElementById('new-link-cv')?.focus();
+    });
+  });
+</script>

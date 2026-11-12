@@ -1,0 +1,58 @@
+---
+import Base from '../../layouts/Base.astro';
+import { SESSION_COOKIE, SESSION_TTL_MS, adminConfigProblem, checkAdminToken, createSession } from '../../lib/auth';
+import { isAdminSession } from '../../lib/adminSession';
+import { config } from '../../lib/config';
+import { clientKey, loginFailures } from '../../lib/ratelimit';
+
+if (isAdminSession(Astro.cookies.get(SESSION_COOKIE)?.value)) return Astro.redirect('/admin', 303);
+
+const configProblem = adminConfigProblem();
+const who = clientKey(Astro.request, Astro.clientAddress);
+let error = '';
+
+if (Astro.request.method === 'POST' && !configProblem) {
+  if (loginFailures.isLocked(who)) {
+    const minutes = Math.ceil(loginFailures.retryAfter(who) / 60);
+    Astro.response.status = 429;
+    Astro.response.headers.set('Retry-After', String(loginFailures.retryAfter(who)));
+    error = `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+  } else {
+    const form = await Astro.request.formData();
+    if (checkAdminToken(String(form.get('token') ?? ''))) {
+      loginFailures.reset(who);
+      Astro.cookies.set(SESSION_COOKIE, createSession(), {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: config.baseUrl.startsWith('https://'),
+        path: '/',
+        maxAge: SESSION_TTL_MS / 1000,
+      });
+      return Astro.redirect('/admin', 303);
+    }
+    // Never log what was typed, only that and from where it failed.
+    const locked = loginFailures.recordFailure(who);
+    console.warn(`[myceevee] failed admin login from ${who}${locked ? ' (now locked out for 15 minutes)' : ''}`);
+    await new Promise((resolve) => setTimeout(resolve, 400)); // slows down guessing
+    Astro.response.status = locked ? 429 : 401;
+    error = locked ? 'Too many failed attempts. Try again in 15 minutes.' : 'Wrong token.';
+  }
+}
+---
+<Base title="Sign in" private>
+  <main class="page">
+    <h1>Sign in</h1>
+    {configProblem ? (
+      <div role="alert">
+        <p class="error">The admin area is locked until this is fixed in .env: {configProblem}</p>
+        <p class="muted">Then restart the server.</p>
+      </div>
+    ) : (
+      <form method="post" class="stack">
+        <label>Admin token <input type="password" name="token" autocomplete="current-password" required autofocus /></label>
+        {error && <p class="error" role="alert">{error}</p>}
+        <button type="submit">Sign in</button>
+      </form>
+    )}
+  </main>
+</Base>

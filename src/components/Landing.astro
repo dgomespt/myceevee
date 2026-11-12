@@ -1,0 +1,50 @@
+---
+import Base from '../layouts/Base.astro';
+import Icon from './Icon.astro';
+import { CV_LABELS, type CvKey } from '../lib/config';
+import type { LandingProfile } from '../lib/landing';
+
+interface Props {
+  profile: LandingProfile | null;
+  /** CVs that are public right now. */
+  cvs: CvKey[];
+  /** Shown under the name, e.g. why the visitor ended up here. */
+  notice?: string;
+  /** Adds noindex (used for short-link URLs). */
+  private?: boolean;
+}
+const { profile, cvs, notice, private: isPrivate = false } = Astro.props;
+const ext = { target: '_blank', rel: 'noopener noreferrer' } as const;
+const LINK_LABEL = { web: 'Website', github: 'GitHub', linkedin: 'LinkedIn' } as const;
+---
+<Base title={profile?.name ?? 'CV'} description={profile?.label} private={isPrivate}>
+  <main class="landing">
+    {profile?.photo && <img class="landing-photo" src={profile.photo} alt="" width="112" height="112" referrerpolicy="no-referrer" />}
+    <h1>{profile?.name ?? 'Curriculum vitae'}</h1>
+    {profile?.label && <p class="landing-label">{profile.label}</p>}
+    {notice && <p class="landing-notice" role="status">{notice}</p>}
+
+    {cvs.length > 0 && (
+      <ul class="landing-cvs">
+        {cvs.map((k) => <li><a class="landing-button" href={`/cv/${k}`}>{CV_LABELS[k]}</a></li>)}
+      </ul>
+    )}
+    {cvs.length === 0 && !notice && (
+      <div class="landing-notice">
+        <p>To open my CV use the link that was shared with you.</p>
+        <p>I will be happy to provide you access.{profile && profile.links.length > 0 && ' Use the links below to find me.'}</p>
+      </div>
+    )}
+
+    {profile && profile.links.length > 0 && (
+      <section class="landing-reach" aria-labelledby="reach-me">
+        <h2 id="reach-me">Reach me at</h2>
+        <ul>
+          {profile.links.map((l) => (
+            <li><a href={l.href} {...ext} aria-label={`${LINK_LABEL[l.kind]}: ${l.text}`}><Icon name={l.kind} />{l.text}</a></li>
+          ))}
+        </ul>
+      </section>
+    )}
+  </main>
+</Base>

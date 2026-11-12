@@ -1,0 +1,237 @@
+---
+import type { Resume } from '../lib/resume';
+import { dateRange, displayUrl, formatDate, locationLine, profileIcon, safeUrl } from '../lib/format';
+import Icon from './Icon.astro';
+import { avatar } from '../lib/avatar';
+import { ALL_SECTIONS, type SectionKey } from '../lib/sections';
+
+interface Props {
+  resume: Resume;
+  /** Extension point for future templates; today it only switches the compact print styling. */
+  variant?: 'one-page' | 'full';
+  /** Which sections to render, and in what order. Defaults to all of them. */
+  order?: readonly SectionKey[];
+}
+const { resume, variant = 'full', order = ALL_SECTIONS } = Astro.props;
+const b = resume.basics ?? {};
+const loc = locationLine(b.location);
+const site = safeUrl(b.url);
+const profiles = (b.profiles ?? []).filter((p) => p.network || p.username);
+// Photo: an explicit basics.image wins; otherwise a Gravatar for basics.email, inlined server-side.
+const photo = safeUrl(b.image) ?? (await avatar.get(b.email));
+// External links open in a new tab. noopener/noreferrer stop the target page from reaching back into this one
+// and keep a private short-link URL out of the Referer header. mailto: links deliberately don't use this.
+const ext = { target: '_blank', rel: 'noopener noreferrer' } as const;
+const has = <T,>(a?: T[]) => Array.isArray(a) && a.length > 0;
+---
+<article class={`cv cv--${variant}`}>
+  <header class={`cv-header${photo ? ' has-photo' : ''}`}>
+    {photo && <img class="cv-photo" src={photo} alt="" width="96" height="96" referrerpolicy="no-referrer" />}
+    <div class="cv-id">
+      {b.name && <h1>{b.name}</h1>}
+      {b.label && <p class="cv-label">{b.label}</p>}
+      <ul class="cv-contact">
+        {loc && <li>{loc}</li>}
+        {b.email && <li><a href={`mailto:${b.email}`}><Icon name="email" />{b.email}</a></li>}
+        {b.phone && <li>{b.phone}</li>}
+        {site && <li><a href={site} {...ext}><Icon name="web" />{displayUrl(site)}</a></li>}
+        {profiles.map((p) => {
+          const href = safeUrl(p.url);
+          const icon = profileIcon(p);
+          // Known networks show an icon plus the handle; others keep a "Network: handle" text label.
+          const handle = p.username ?? (href ? displayUrl(href) : '');
+          const text = icon ? handle : `${p.network ?? ''}${p.network && p.username ? ': ' : ''}${p.username ?? ''}`;
+          const label = `${p.network ?? icon}${handle ? `: ${handle}` : ''}`;
+          return (
+            <li>
+              {href ? <a href={href} {...ext} aria-label={icon ? label : undefined}>{icon && <Icon name={icon} />}{text}</a>
+                    : <span>{icon && <Icon name={icon} />}{text}</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  </header>
+
+  {order.map((key) => (
+  <Fragment>
+  {key === 'summary' && b.summary && (
+    <section class="cv-section">
+      <h2>Summary</h2>
+      <p class="cv-summary">{b.summary}</p>
+    </section>
+  )}
+
+  {key === 'work' && has(resume.work) && (
+    <section class="cv-section">
+      <h2>Experience</h2>
+      {resume.work!.map((w) => {
+        const href = safeUrl(w.url);
+        return (
+          <div class="cv-entry">
+            <div class="cv-entry-head">
+              <h3>
+                {w.position}{w.position && w.name && ', '}
+                {href ? <a href={href} {...ext}>{w.name}</a> : w.name}
+              </h3>
+              <span class="cv-dates">{dateRange(w.startDate, w.endDate)}</span>
+            </div>
+            {w.location && <p class="cv-meta">{w.location}</p>}
+            {(w.summary ?? w.description) && <p>{w.summary ?? w.description}</p>}
+            {has(w.highlights) && <ul>{w.highlights!.map((h) => <li>{h}</li>)}</ul>}
+          </div>
+        );
+      })}
+    </section>
+  )}
+
+  {key === 'projects' && has(resume.projects) && (
+    <section class="cv-section">
+      <h2>Projects</h2>
+      {resume.projects!.map((p) => {
+        const href = safeUrl(p.url);
+        return (
+          <div class="cv-entry">
+            <div class="cv-entry-head">
+              <h3>{href ? <a href={href} {...ext}>{p.name}</a> : p.name}</h3>
+              <span class="cv-dates">{dateRange(p.startDate, p.endDate)}</span>
+            </div>
+            {p.description && <p>{p.description}</p>}
+            {has(p.highlights) && <ul>{p.highlights!.map((h) => <li>{h}</li>)}</ul>}
+            {has(p.keywords) && <p class="cv-meta">{p.keywords!.join(' · ')}</p>}
+          </div>
+        );
+      })}
+    </section>
+  )}
+
+  {key === 'education' && has(resume.education) && (
+    <section class="cv-section">
+      <h2>Education</h2>
+      {resume.education!.map((e) => (
+        <div class="cv-entry">
+          <div class="cv-entry-head">
+            <h3>
+              {[e.studyType, e.area].filter(Boolean).join(', ')}
+              {(e.studyType || e.area) && e.institution && ', '}
+              {e.institution}
+            </h3>
+            <span class="cv-dates">{dateRange(e.startDate, e.endDate)}</span>
+          </div>
+          {e.score && <p class="cv-meta">Score: {e.score}</p>}
+          {has(e.courses) && <p class="cv-meta">{e.courses!.join(' · ')}</p>}
+        </div>
+      ))}
+    </section>
+  )}
+
+  {key === 'skills' && has(resume.skills) && (
+    <section class="cv-section">
+      <h2>Skills</h2>
+      <dl class="cv-skills">
+        {resume.skills!.map((s) => (
+          <>
+            <dt>{s.name}</dt>
+            <dd>{(s.keywords ?? []).join(', ')}</dd>
+          </>
+        ))}
+      </dl>
+    </section>
+  )}
+
+  {key === 'volunteer' && has(resume.volunteer) && (
+    <section class="cv-section">
+      <h2>Volunteering</h2>
+      {resume.volunteer!.map((v) => (
+        <div class="cv-entry">
+          <div class="cv-entry-head">
+            <h3>{v.position}{v.position && v.organization && ', '}{v.organization}</h3>
+            <span class="cv-dates">{dateRange(v.startDate, v.endDate)}</span>
+          </div>
+          {v.summary && <p>{v.summary}</p>}
+          {has(v.highlights) && <ul>{v.highlights!.map((h) => <li>{h}</li>)}</ul>}
+        </div>
+      ))}
+    </section>
+  )}
+
+  {key === 'certificates' && has(resume.certificates) && (
+    <section class="cv-section">
+      <h2>Certificates</h2>
+      <ul class="cv-plain">
+        {resume.certificates!.map((c) => {
+          const href = safeUrl(c.url);
+          return (
+            <li>
+              {href ? <a href={href} {...ext}>{c.name}</a> : c.name}
+              {c.issuer && <> — {c.issuer}</>}
+              {c.date && <span class="cv-dates"> {formatDate(c.date)}</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  )}
+
+  {key === 'awards' && has(resume.awards) && (
+    <section class="cv-section">
+      <h2>Awards</h2>
+      <ul class="cv-plain">
+        {resume.awards!.map((a) => (
+          <li>
+            <strong>{a.title}</strong>{a.awarder && <> — {a.awarder}</>}
+            {a.date && <span class="cv-dates"> {formatDate(a.date)}</span>}
+            {a.summary && <p>{a.summary}</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {key === 'publications' && has(resume.publications) && (
+    <section class="cv-section">
+      <h2>Publications</h2>
+      <ul class="cv-plain">
+        {resume.publications!.map((p) => {
+          const href = safeUrl(p.url);
+          return (
+            <li>
+              {href ? <a href={href} {...ext}>{p.name}</a> : p.name}
+              {p.publisher && <> — {p.publisher}</>}
+              {p.releaseDate && <span class="cv-dates"> {formatDate(p.releaseDate)}</span>}
+              {p.summary && <p>{p.summary}</p>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  )}
+
+  {key === 'languages' && has(resume.languages) && (
+    <section class="cv-section">
+      <h2>Languages</h2>
+      <p>{resume.languages!.map((l) => [l.language, l.fluency && `(${l.fluency})`].filter(Boolean).join(' ')).join(' · ')}</p>
+    </section>
+  )}
+
+  {key === 'interests' && has(resume.interests) && (
+    <section class="cv-section">
+      <h2>Interests</h2>
+      <p>{resume.interests!.map((i) => i.name).filter(Boolean).join(' · ')}</p>
+    </section>
+  )}
+
+  {key === 'references' && has(resume.references) && (
+    <section class="cv-section">
+      <h2>References</h2>
+      {resume.references!.map((r) => (
+        <blockquote class="cv-ref">
+          <p>{r.reference}</p>
+          <footer>{r.name}</footer>
+        </blockquote>
+      ))}
+    </section>
+  )}
+  </Fragment>
+  ))}
+</article>

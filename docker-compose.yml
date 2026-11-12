@@ -1,0 +1,11 @@
+services:
+  myceevee:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-4321}:4321"
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/myceevee.db
+    volumes:
+      - ./data:/data

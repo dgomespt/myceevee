@@ -1,0 +1,22 @@
+---
+import Landing from '../components/Landing.astro';
+import { config } from '../lib/config';
+import { getDb } from '../lib/db';
+import { loadLanding } from '../lib/landing';
+import { publicKeys } from '../lib/links';
+
+const cvs = publicKeys(getDb());
+
+// Nothing public: send visitors to the configured URL, unless that would just loop back to this page.
+const target = config.homeRedirectUrl;
+if (cvs.length === 0 && target) {
+  const there = new URL(target);
+  const loops = there.origin === Astro.url.origin && (there.pathname === '/' || there.pathname === '');
+  if (!loops) {
+    return new Response(null, { status: 302, headers: { Location: target, 'Cache-Control': 'no-store' } });
+  }
+}
+
+const profile = await loadLanding();
+---
+<Landing profile={profile} cvs={cvs} />

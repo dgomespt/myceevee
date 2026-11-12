@@ -1,0 +1,27 @@
+---
+import Base from '../layouts/Base.astro';
+import Resume from './Resume.astro';
+import Unavailable from './Unavailable.astro';
+import { CV_LABELS, type CvKey } from '../lib/config';
+import type { LoadResult } from '../lib/gist';
+
+// The page loads the CV (see loadCv) so it can set the HTTP status: a status set from a child
+// component is too late once Astro starts streaming the response.
+interface Props { cvKey: CvKey; result: LoadResult; private?: boolean }
+const { cvKey, result, private: isPrivate = false } = Astro.props;
+const name = result.ok ? result.resume.basics?.name : undefined;
+const label = result.ok ? result.resume.basics?.label : undefined;
+const title = name ? `${name} – ${CV_LABELS[cvKey]}` : CV_LABELS[cvKey];
+---
+{result.ok ? (
+  <Base title={title} description={label} private={isPrivate}>
+    {cvKey === 'one-page' && (
+      // A zero page margin is what stops browsers printing their own header and footer (date, URL, page number),
+      // since those live in the margin. The one-page CV supplies its margin as padding instead (see cv.css).
+      <style slot="head" is:inline set:html="@page { size: A4; margin: 0; }" />
+    )}
+    <Resume resume={result.resume} variant={cvKey} order={result.order} />
+  </Base>
+) : (
+  <Unavailable title="Temporarily unavailable" message="This CV can't be shown right now. Please try again shortly." />
+)}

@@ -1,0 +1,199 @@
+:root {
+  --bg: #f6f6f4;
+  --paper: #ffffff;
+  --ink: #1d2330;
+  --muted: #5b6475;
+  --rule: #d9dce3;
+  --accent: #1f4e8c;
+  --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --measure: 52rem;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 var(--font);
+}
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+/* ---- CV ---- */
+.cv {
+  max-width: var(--measure);
+  margin: 2rem auto;
+  padding: 3rem 3.25rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+.cv h1 { margin: 0; font-size: 2rem; line-height: 1.15; letter-spacing: -0.01em; }
+.cv-label { margin: 0.25rem 0 0; font-size: 1.1rem; color: var(--muted); }
+.cv-contact {
+  display: flex; flex-wrap: wrap; gap: 0.15rem 1.1rem;
+  margin: 0.9rem 0 0; padding: 0; list-style: none; font-size: 0.92rem; color: var(--muted);
+}
+.cv-contact li > a, .cv-contact li > span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.cv-icon { width: 1em; height: 1em; flex: none; }
+.cv-header { padding-bottom: 1rem; border-bottom: 2px solid var(--ink); }
+.cv-header.has-photo { display: flex; align-items: center; gap: 1.5rem; }
+.cv-id { min-width: 0; }
+.cv-photo {
+  flex: none; width: 96px; height: 96px; border-radius: 50%; object-fit: cover;
+  background: var(--rule); border: 1px solid var(--rule);
+}
+
+.cv-section { margin-top: 1.6rem; }
+.cv-section h2 {
+  margin: 0 0 0.6rem; padding-bottom: 0.25rem;
+  font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent); border-bottom: 1px solid var(--rule);
+}
+.cv-summary { margin: 0; }
+.cv-entry { margin-bottom: 1.1rem; break-inside: avoid; }
+.cv-entry:last-child { margin-bottom: 0; }
+.cv-entry-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.cv-entry h3 { margin: 0; font-size: 1rem; font-weight: 650; }
+.cv-entry p { margin: 0.2rem 0 0; }
+.cv-entry ul, .cv-plain { margin: 0.35rem 0 0; padding-left: 1.2rem; }
+.cv-entry li, .cv-plain li { margin: 0.15rem 0; }
+.cv-plain { list-style: none; padding-left: 0; }
+.cv-plain p { margin: 0.15rem 0 0; }
+.cv-dates { flex: none; font-size: 0.88rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cv-meta { font-size: 0.9rem; color: var(--muted); }
+.cv-skills { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1.25rem; margin: 0; }
+.cv-skills dt { font-weight: 650; }
+.cv-skills dd { margin: 0; }
+.cv-ref { margin: 0 0 0.75rem; padding-left: 1rem; border-left: 3px solid var(--rule); }
+.cv-ref p { margin: 0; }
+.cv-ref footer { font-size: 0.9rem; color: var(--muted); }
+
+/* One-page variant: tighter, so it fits a single sheet when printed. */
+.cv--one-page { font-size: 0.94rem; line-height: 1.45; }
+.cv--one-page .cv-section { margin-top: 1.1rem; }
+.cv--one-page .cv-entry { margin-bottom: 0.7rem; }
+.cv--one-page .cv-photo { width: 80px; height: 80px; }
+
+/* ---- Small screens ---- */
+@media (max-width: 640px) {
+  .cv { margin: 0; padding: 1.5rem 1.1rem; border: 0; border-radius: 0; }
+  .cv-header.has-photo { gap: 1rem; }
+  .cv-photo, .cv--one-page .cv-photo { width: 64px; height: 64px; }
+  .cv-entry-head { flex-direction: column; gap: 0; }
+  .cv-skills { grid-template-columns: 1fr; gap: 0; }
+  .cv-skills dd { margin-bottom: 0.4rem; }
+}
+
+/* ---- Print ---- */
+/* The full CV keeps a real page margin so text never runs to the paper edge on any page. The cost is that browsers
+   print their own header/footer in that margin unless "Headers and footers" is switched off in the print dialog.
+   The one-page CV avoids this: see CvView.astro (zero @page margin) and `.cv--one-page` below (padding instead). */
+@page { size: A4; margin: 14mm; }
+@media print {
+  :root { --bg: #fff; }
+  body { font-size: 10.5pt; background: #fff; }
+  .cv { margin: 0; padding: 0; max-width: none; border: 0; border-radius: 0; box-shadow: none; }
+  .cv--one-page { font-size: 9.5pt; line-height: 1.35; }
+  .cv--one-page h1 { font-size: 20pt; }
+  /* Margin supplied by the CV itself because its @page margin is 0. `clone` repeats it on every page if it ever spills. */
+  .cv--one-page { padding: 13mm 15mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  .cv a { color: inherit; text-decoration: none; }
+  .cv-photo { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .no-print { display: none !important; }
+
+  /* Page-break hygiene: never leave a heading stranded at the bottom of a page, or split a bullet. */
+  .cv-section h2, .cv-entry-head, .cv-entry h3 { break-after: avoid; }
+  .cv-entry, .cv-entry li, .cv-skills dt, .cv-ref { break-inside: avoid; }
+  .cv p, .cv li { orphans: 3; widows: 3; }
+}
+
+/* ---- Simple pages (landing, errors, admin) ---- */
+.page { max-width: 36rem; margin: 4rem auto; padding: 0 1.25rem; }
+.page h1 { font-size: 1.6rem; margin: 0 0 0.5rem; }
+.page p { color: var(--muted); }
+.page ul.links { list-style: none; padding: 0; }
+.page ul.links li { margin: 0.5rem 0; }
+
+/* ---- Admin ---- */
+.page.admin { max-width: 44rem; }
+.admin-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.admin-head h1 { margin: 0; }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 1rem 1.25rem; margin: 1rem 0; }
+.card.highlight { border-color: var(--accent); }
+.card h2 { margin: 0 0 0.6rem; font-size: 1rem; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.5rem 0; border-top: 1px solid var(--rule); }
+.row:first-of-type { border-top: 0; }
+ul.plain { list-style: none; margin: 0; padding: 0; }
+.stack { display: grid; gap: 0.75rem; }
+.stack label { display: grid; gap: 0.25rem; font-size: 0.9rem; color: var(--muted); }
+.inline { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem; }
+input, select, button { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--rule); border-radius: 4px; background: #fff; color: var(--ink); }
+input.copy { width: 100%; font-family: ui-monospace, monospace; }
+button { cursor: pointer; background: var(--accent); color: #fff; border-color: var(--accent); }
+button.secondary { background: #fff; color: var(--ink); border-color: var(--rule); }
+button:hover { filter: brightness(0.96); }
+.muted { color: var(--muted); font-size: 0.88rem; }
+.error { color: #b3261e; }
+.view-link { margin-left: 0.6rem; font-size: 0.88rem; }
+
+/* Toggle switch: a form-submit button marked up as role="switch". Position of the thumb, not just colour, shows the state. */
+button.switch { display: inline-flex; align-items: center; gap: 0.6rem; padding: 0.2rem 0; background: none; border: 0; color: var(--ink); font-size: 0.9rem; }
+button.switch:hover { filter: none; }
+.switch-track { position: relative; flex: none; width: 2.75rem; height: 1.5rem; border-radius: 999px; background: #aab1bd; transition: background 0.15s; }
+.switch-thumb { position: absolute; top: 0.15rem; left: 0.15rem; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: transform 0.15s; }
+.switch[aria-checked='true'] .switch-track { background: #1c8c4a; }
+.switch[aria-checked='true'] .switch-thumb { transform: translateX(1.25rem); }
+.switch:hover .switch-track { filter: brightness(0.94); }
+.switch:focus-visible { outline: none; }
+.switch:focus-visible .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch-text { min-width: 3.6rem; text-align: left; color: var(--muted); }
+.switch[aria-checked='true'] .switch-text { color: #1c6b34; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .switch-track, .switch-thumb { transition: none; } }
+
+.copy-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.75rem 0; }
+.copy-row input.copy { flex: 1; min-width: 0; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.45rem; line-height: 0; background: #fff; color: var(--ink); border-color: var(--rule); }
+.icon-btn .cv-icon { width: 1.1rem; height: 1.1rem; }
+.icon-btn .when-copied { display: none; }
+.icon-btn[data-state='copied'] { color: #1c6b34; border-color: #1c6b34; }
+.icon-btn[data-state='copied'] .when-idle { display: none; }
+.icon-btn[data-state='copied'] .when-copied { display: inline-flex; }
+.icon-btn[hidden] { display: none; }
+.copy-status { min-width: 6rem; }
+
+/* ---- Landing (homepage and expired links) ---- */
+.landing { max-width: 30rem; margin: 0 auto; padding: 5rem 1.25rem 3rem; text-align: center; }
+.landing-photo {
+  width: 112px; height: 112px; border-radius: 50%; object-fit: cover; margin-bottom: 1.1rem;
+  background: var(--rule); border: 1px solid var(--rule); box-shadow: 0 2px 10px rgba(29, 35, 48, 0.12);
+}
+.landing h1 { margin: 0; font-size: 2rem; line-height: 1.15; letter-spacing: -0.01em; }
+.landing-label { margin: 0.35rem 0 0; font-size: 1.1rem; color: var(--muted); }
+.landing-notice { margin: 1.5rem auto 0; padding: 0.7rem 1rem; max-width: 24rem; color: var(--muted); background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+.landing-cvs { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin: 1.75rem 0 0; padding: 0; list-style: none; }
+.landing-notice p { margin: 0; color: inherit; }
+.landing-notice p + p { margin-top: 0.5rem; }
+.landing-button { display: inline-block; padding: 0.6rem 1.25rem; border-radius: 999px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
+.landing-button:hover { filter: brightness(1.08); }
+.landing-reach { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); }
+.landing-reach h2 { margin: 0 0 0.75rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.landing-reach ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem 1.4rem; margin: 0; padding: 0; list-style: none; }
+.landing-reach a { display: inline-flex; align-items: center; gap: 0.45rem; }
+
+.card[hidden] { display: none; }
+.card[data-link-card] { position: relative; }
+.card[data-link-card] h2 { padding-right: 2.5rem; }
+button.card-close { position: absolute; top: 0.6rem; right: 0.6rem; display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; line-height: 0; background: transparent; border: 0; border-radius: 4px; color: var(--muted); }
+button.card-close[hidden] { display: none; }
+button.card-close .cv-icon { width: 1.15rem; height: 1.15rem; }
+button.card-close:hover:not([aria-disabled='true']) { filter: none; background: #eceef2; color: var(--ink); }
+button.card-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
+button[aria-disabled='true']:hover { filter: none; }
+
+button.with-icon { display: inline-flex; align-items: center; gap: 0.5rem; }
+button.with-icon .cv-icon { width: 1.05em; height: 1.05em; }
+
+.brand { display: flex; align-items: center; gap: 0.6rem; }
+.logo { width: 1.9rem; height: 1.9rem; flex: none; color: var(--accent); }
