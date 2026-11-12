@@ -3,16 +3,19 @@ import CvView from '../../components/CvView.astro';
 import Landing from '../../components/Landing.astro';
 import Unavailable from '../../components/Unavailable.astro';
 import { getDb } from '../../lib/db';
-import { publicKeys, resolveLink } from '../../lib/links';
+import { publicKeys, resolveLinkDetail } from '../../lib/links';
 import { clientKey, linkLimiter } from '../../lib/ratelimit';
 import { loadCv } from '../../lib/gist';
 import { loadLanding } from '../../lib/landing';
+import { trackView } from '../../lib/metrics';
 
 const { token } = Astro.params;
 const limited = !linkLimiter.allow(clientKey(Astro.request, Astro.clientAddress));
-const cvKey = !limited && token ? resolveLink(getDb(), token) : null;
+const link = !limited && token ? resolveLinkDetail(getDb(), token) : null;
+const cvKey = link?.cvKey ?? null;
 
 const loaded = cvKey ? await loadCv(cvKey) : null;
+if (link && loaded?.result.ok) trackView(getDb(), { cvKey: link.cvKey, kind: 'page', link, request: Astro.request, clientAddress: Astro.clientAddress });
 // Unknown, expired and revoked links all look the same: show the homepage, with a short note.
 const dead = !limited && !cvKey;
 const profile = dead ? await loadLanding() : null;

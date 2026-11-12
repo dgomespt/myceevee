@@ -62,12 +62,24 @@ export function createLink(
   return { token, expiresAt };
 }
 
+export interface ResolvedLink {
+  cvKey: CvKey;
+  tokenHash: string;
+  label: string | null;
+}
+
+/** Like resolveLink, but also returns the link's hash and label (for counting views). Null if unknown, expired or revoked. */
+export function resolveLinkDetail(db: Db, token: string, now = Date.now()): ResolvedLink | null {
+  const tokenHash = hashToken(token);
+  const row = db
+    .prepare('SELECT cv_key, label FROM links WHERE token_hash = ? AND expires_at > ? AND revoked_at IS NULL')
+    .get(tokenHash, now) as { cv_key: CvKey; label: string | null } | undefined;
+  return row ? { cvKey: row.cv_key, tokenHash, label: row.label } : null;
+}
+
 /** Returns the CV a token grants access to, or null if unknown, expired or revoked. */
 export function resolveLink(db: Db, token: string, now = Date.now()): CvKey | null {
-  const row = db
-    .prepare('SELECT cv_key FROM links WHERE token_hash = ? AND expires_at > ? AND revoked_at IS NULL')
-    .get(hashToken(token), now) as { cv_key: CvKey } | undefined;
-  return row?.cv_key ?? null;
+  return resolveLinkDetail(db, token, now)?.cvKey ?? null;
 }
 
 export function listActiveLinks(db: Db, now = Date.now()): LinkRow[] {

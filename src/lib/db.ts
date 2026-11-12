@@ -26,6 +26,24 @@ export function openDb(path: string): Db {
       expires_at INTEGER NOT NULL,
       revoked_at INTEGER
     );
+    -- Running view counts. link_hash is '' for a public CV; label is copied from the link so it outlives pruning of the link.
+    CREATE TABLE IF NOT EXISTS view_totals (
+      cv_key TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      link_hash TEXT NOT NULL DEFAULT '',
+      label TEXT NOT NULL DEFAULT '',
+      views INTEGER NOT NULL DEFAULT 0,
+      last_viewed_at INTEGER NOT NULL,
+      PRIMARY KEY (cv_key, kind, link_hash)
+    );
+    -- One row per distinct visitor per public CV per UTC day. The visitor is a salted hash that changes every day;
+    -- no IP address or user agent is ever stored.
+    CREATE TABLE IF NOT EXISTS visitors_daily (
+      day TEXT NOT NULL,
+      cv_key TEXT NOT NULL,
+      visitor TEXT NOT NULL,
+      PRIMARY KEY (day, cv_key, visitor)
+    ) WITHOUT ROWID;
   `);
   return db;
 }

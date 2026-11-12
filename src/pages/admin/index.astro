@@ -8,6 +8,7 @@ import { avatar } from '../../lib/avatar';
 import { CV_KEYS, CV_LABELS, config, isCvKey } from '../../lib/config';
 import { createLink, isPublic, listActiveLinks, pruneLinks, revokeLink, setPublic } from '../../lib/links';
 import { formatDuration, parseTtlSeconds, remaining } from '../../lib/duration';
+import { linkViewCounts, publicViewStats } from '../../lib/metrics';
 
 const db = getDb();
 let created: { url: string; cvKey: string; expiresAt: number } | null = null;
@@ -44,6 +45,8 @@ if (Astro.request.method === 'POST') {
 
 pruneLinks(db);
 const links = listActiveLinks(db);
+const linkViews = linkViewCounts(db);
+const publicViews = publicViewStats(db);
 const statuses = await Promise.all(CV_KEYS.map(async (k) => ({ key: k, result: await gist.load(k) })));
 const fmt = (ms: number) => new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
 ---
@@ -113,6 +116,23 @@ const fmt = (ms: number) => new Date(ms).toISOString().replace('T', ' ').slice(0
     </section>
 
     <section class="card">
+      <h2>Views</h2>
+      <ul class="plain">
+        {CV_KEYS.map((k) => (
+          <li class="row">
+            <div>
+              <strong>{CV_LABELS[k]}</strong> <span class="muted">· public address</span><br />
+              <span class="muted">
+                {publicViews[k].pages} page views, {publicViews[k].pdfs} PDF downloads · unique visitors: {publicViews[k].uniqueToday} today, {publicViews[k].uniqueLast7Days} over 7 days (counted per day)
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p class="muted">Short links are counted per link below. No IP addresses are stored: visitors are anonymous hashes that change every day.</p>
+    </section>
+
+    <section class="card">
       <h2>New short link</h2>
       <form method="post" class="stack">
         <input type="hidden" name="action" value="create" />
@@ -141,7 +161,11 @@ const fmt = (ms: number) => new Date(ms).toISOString().replace('T', ' ').slice(0
             <li class="row">
               <div>
                 <strong>{l.label ?? 'Untitled'}</strong> <span class="muted">· {CV_LABELS[l.cv_key]}</span><br />
-                <span class="muted">expires {fmt(l.expires_at)} ({remaining(l.expires_at)})</span>
+                <span class="muted">expires {fmt(l.expires_at)} ({remaining(l.expires_at)})</span><br />
+                {(() => {
+                  const v = linkViews.get(l.token_hash);
+                  return <span class="muted">{v ? `${v.pages} page views, ${v.pdfs} PDF downloads, last ${fmt(v.lastViewedAt!)}` : 'not opened yet'}</span>;
+                })()}
               </div>
               <form method="post">
                 <input type="hidden" name="action" value="revoke" />

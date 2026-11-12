@@ -1,4 +1,5 @@
 ## 0.1.0
+- View metrics. Every served CV page or PDF is counted, for public CVs and for short links. Public CVs get page views, PDF downloads and anonymous unique visitors per day (a salted daily hash, so nobody can be followed across days; no IP address or user agent is stored, and the per-day records are deleted after `METRICS_RETENTION_DAYS`, default 90). Short links are counted per link, with the label, and `/admin` shows the counts next to each link. New `GET /metrics` Prometheus endpoint (`myceevee_cv_views_total`, `myceevee_cv_unique_visitors_today`, `myceevee_link_views_total`), off until `METRICS_TOKEN` is set, then protected by a bearer token.
 - New `GET /healthz` endpoint: `200 {"status":"ok"}` while the app is serving and its SQLite database answers, `503` otherwise. It doesn't call GitHub, so a gist outage doesn't count as unhealthy. The Docker image uses it for a built-in `HEALTHCHECK` (every 30 s, using Node's `fetch`, so no extra packages are needed).
 - README shows a CI status badge and documents the health check.
 - The location in a CV's header now has a map-pin icon, on the page and in the PDF.
