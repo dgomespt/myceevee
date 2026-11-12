@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig(
-  { ignores: ['dist/', '.astro/', 'node_modules/', 'public/', 'data/'] },
+  { ignores: ['dist/', '.astro/', 'node_modules/', '.npm-cache/', 'public/', 'data/'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   astro.configs.recommended,
