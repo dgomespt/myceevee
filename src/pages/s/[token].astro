@@ -24,7 +24,7 @@ else if (loaded) Astro.response.status = loaded.status;
 {limited ? (
   <Unavailable title="Too many requests" message="Please wait a minute and try again." />
 ) : cvKey ? (
-  <CvView cvKey={cvKey} result={loaded!.result} private />
+  <CvView cvKey={cvKey} result={loaded!.result} pdfHref={`/s/${token}.pdf`} private />
 ) : (
   <Landing profile={profile} cvs={publicKeys(getDb())} notice="This link has expired or is no longer available." private />
 )}

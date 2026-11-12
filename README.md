@@ -7,6 +7,8 @@ in the [JSON Resume](https://jsonresume.org/schema) format and read from a GitHu
 - **Private:** hidden (404), but you can mint a **short link** (`/s/<token>`) with a lifetime. After it expires, or
   once you revoke it, visitors see a friendly landing page (HTTP 410) instead. Hand these to recruiters.
 
+Every CV page has a **Download PDF** button, so whoever you send a link to can keep a copy ([details](#pdf-download)).
+
 **Requirements:** `make` and Docker, nothing else. Node and npm never run on your machine: every `make` target that needs
 them runs inside a `node:24` container (the same as CI) as your user, with `node_modules` kept in the project folder.
 
@@ -182,7 +184,9 @@ Open `/admin` and sign in with `ADMIN_TOKEN`.
   - The session cookie is `HttpOnly`, `SameSite=Strict`, and `Secure` when `PUBLIC_BASE_URL` is `https://`.
 - **Short links:** 10 random characters, stored only as a SHA-256 hash, and rate limited per address. Short-link and
   admin responses send `noindex`, `no-store` and `no-referrer`.
-- **Gist content is untrusted:** only http(s) links are ever rendered, and everything is escaped.
+- **Gist content is untrusted:** only http(s) links are ever rendered, and everything is escaped. The server only makes
+  requests to an address named in the gist, with one narrow exception: a `basics.image` on Gravatar, which it downloads
+  for the PDF photo.
 - `make clear-cache` logs in with your `ADMIN_TOKEN`, so only point it at your own server.
 
 ## Photo, caching and printing
@@ -197,8 +201,46 @@ Open `/admin` and sign in with `ADMIN_TOKEN`.
   footer (date, URL, page number): it uses a zero page margin and pads its own content, which is the only way a web
   page can hide them. The full CV keeps a normal page margin so no page runs to the paper edge, which means browsers
   *may* print their header and footer on it; untick "Headers and footers" in the print dialog for a clean copy.
-  Headings stay with their content and bullets aren't split across pages. A downloadable PDF would remove the
-  dependence on print-dialog settings.
+  Headings stay with their content and bullets aren't split across pages. The [PDF](#pdf-download) doesn't depend on
+  print-dialog settings at all.
+
+## PDF download
+
+Each CV page shows a **Download PDF** button above the CV. The PDF is also a plain link you can share:
+
+| Address | Available |
+|---|---|
+| `/cv/full.pdf`, `/cv/one-page.pdf` | while that CV is public (otherwise 404, like its page) |
+| `/s/<token>.pdf` | while the short link is live; expired, revoked and unknown links all get the same 410 |
+
+Access works exactly like the pages: the same visibility toggle, the same short-link lifetime and revocation, and the same
+rate limit (60 requests a minute per address, shared with the page). Short-link PDFs are sent with `noindex`, `no-store`
+and `no-referrer`. The file is named after you (`Your-Name-CV.pdf`, `Your-Name-CV-one-page.pdf`) and its links (email,
+website, profiles, linked employers) are clickable.
+
+- **Same content, own layout.** The PDF shows the same sections in the same order, honouring `ONEPAGE_SECTIONS`,
+  `FULL_SECTIONS` and a hand-made `resume.onepage.json`. It is drawn by [pdfkit](https://pdfkit.org) (pure JavaScript: no
+  browser and no system packages, so the image stays small and runs as a non-root user), not printed from the web page, so
+  it resembles the web CV rather than copying it pixel for pixel. A change to the layout in `Resume.astro` needs the
+  matching change in `src/lib/pdf.ts`.
+- **One page means one page.** The one-page PDF shrinks its text step by step (down to about 8 pt) until it fits on one A4
+  sheet. If it still doesn't fit, it runs onto a second page instead of getting smaller. Lower the limits in
+  `ONEPAGE_SECTIONS` to shorten it. The full CV breaks onto more pages without splitting an entry.
+- **Header on later pages.** Page 1 has the same header as the web CV (photo, name, and icons with handles). Pages 2 and
+  later start with a slim header instead: your name, then your email, website and profile addresses written out as text
+  (`linkedin.com/in/your-handle`, without `https://` or `www.`). A link can't be clicked on paper, so the address itself
+  has to be readable; on screen each one is still a link. Location and phone aren't repeated. A CV with no name and no
+  addresses has no such header.
+- **Page numbers.** A PDF with more than one page shows "Page x of y" centred in the bottom margin. A single page has no
+  counter, so a CV that fits on one sheet stays clean (and a one-page CV that had to spill onto a second sheet gets one).
+- **Fonts.** PDFs use the built-in Helvetica, which covers Western European languages (accents, `ç`, `ñ`, `€`, curly
+  quotes, dashes). Characters outside that set, such as Greek, Cyrillic, CJK or emoji, print as `?`.
+- **Photo.** The same choice as the web CV: `basics.image` if set, otherwise the Gravatar for `basics.email`. Because the
+  *server* has to download it for the PDF, an explicit `basics.image` is only used when it is a Gravatar address (https,
+  `gravatar.com` or a subdomain, or the origin in `GRAVATAR_BASE_URL`). The server never fetches any other host named in the
+  gist, so with a different host the web CV shows the photo but the PDF has none. Only PNG and JPEG can be embedded.
+- **Caching.** Finished PDFs are kept in memory (the last 8, keyed by their content), so repeat downloads are instant and a
+  changed gist is picked up straight away.
 
 ## Continuous integration
 
@@ -222,9 +264,10 @@ the lockfile it writes always works there.
 ## Development
 
 ```
-src/lib/         gist client, schema validation, sections, links/TTL, auth, rate limiting, avatar, landing profile
+src/lib/         gist client, schema validation, sections, links/TTL, auth, rate limiting, avatar, landing profile,
+                 pdf.ts (the PDF layout) and pdfResponse.ts (headers, caching)
 src/components/  Resume.astro (the CV render), CvView, Landing, Logo, Icon, Unavailable
-src/pages/       /, /cv/[key], /s/[token], /admin/*
+src/pages/       /, /cv/[key], /cv/[key].pdf, /s/[token], /s/[token].pdf, /admin/*
 src/scripts/     client-side copy-to-clipboard helper
 scripts/         refresh-server-cache.sh (used by `make clear-cache`)
 public/          favicons

@@ -16,13 +16,15 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "astro": "^7.4.11",
-    "better-sqlite3": "^13.1.1"
+    "better-sqlite3": "^13.1.1",
+    "pdfkit": "^0.20.2"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.6",
+    "@types/pdfkit": "^0.17.7",
     "eslint": "^10.14.0",
     "eslint-plugin-astro": "^1.7.0",
     "globals": "^17.14.0",

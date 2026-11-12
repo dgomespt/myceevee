@@ -11,4 +11,4 @@ const cvKey = isCvKey(key) && isPublic(getDb(), key) ? key : null;
 const loaded = cvKey ? await loadCv(cvKey) : null;
 Astro.response.status = loaded ? loaded.status : 404;
 ---
-{cvKey && loaded ? <CvView cvKey={cvKey} result={loaded.result} /> : <Unavailable title="Not found" />}
+{cvKey && loaded ? <CvView cvKey={cvKey} result={loaded.result} pdfHref={`/cv/${cvKey}.pdf`} /> : <Unavailable title="Not found" />}

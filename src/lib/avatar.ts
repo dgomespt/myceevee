@@ -19,6 +19,20 @@ export interface AvatarClientOptions {
 }
 
 /**
+ * The photo address from a CV (basics.image) as a URL, but only if the server may fetch it: an https Gravatar address
+ * (gravatar.com or one of its subdomains), or an address on the origin set as GRAVATAR_BASE_URL. Gist content is
+ * untrusted, so any other host is refused: the server never makes requests to arbitrary addresses taken from it.
+ */
+export function fetchablePhotoUrl(address: string, base: string): URL | null {
+  let url: URL;
+  try { url = new URL(address); } catch { return null; }
+  if (url.username || url.password) return null;
+  const host = url.hostname.toLowerCase();
+  if (url.protocol === 'https:' && (host === 'gravatar.com' || host.endsWith('.gravatar.com'))) return url;
+  try { return url.origin === new URL(base).origin ? url : null; } catch { return null; }
+}
+
+/**
  * Fetches a Gravatar server-side and returns it as a data: URI, so visitors never contact Gravatar and the
  * email hash never appears in the page. Misses (no Gravatar, errors, odd responses) return null and are cached
  * briefly so a slow or down Gravatar can't slow every page view.
@@ -31,9 +45,9 @@ export function createAvatarClient(opts: AvatarClientOptions = {}) {
   const base = opts.base ?? (() => config.gravatarBase);
   const cache = new Map<string, { at: number; value: string | null }>();
 
-  async function download(hash: string): Promise<string | null> {
+  async function download(url: string): Promise<string | null> {
     try {
-      const res = await doFetch(`${base()}/avatar/${hash}?s=${AVATAR_PX}&d=404`, {
+      const res = await doFetch(url, {
         headers: { 'User-Agent': 'myceevee' },
         signal: AbortSignal.timeout(3000),
       });
@@ -48,16 +62,25 @@ export function createAvatarClient(opts: AvatarClientOptions = {}) {
     }
   }
 
+  async function cached(key: string, url: string): Promise<string | null> {
+    const hit = cache.get(key);
+    if (hit && now() - hit.at < (hit.value ? hitTtl() : missTtl)) return hit.value;
+    const value = await download(url);
+    // Keep the last good photo if a refresh fails.
+    cache.set(key, { at: now(), value: value ?? hit?.value ?? null });
+    return value ?? hit?.value ?? null;
+  }
+
   return {
     async get(email?: string): Promise<string | null> {
       if (!email?.trim()) return null;
       const hash = gravatarHash(email);
-      const hit = cache.get(hash);
-      if (hit && now() - hit.at < (hit.value ? hitTtl() : missTtl)) return hit.value;
-      const value = await download(hash);
-      // Keep the last good photo if a refresh fails.
-      cache.set(hash, { at: now(), value: value ?? hit?.value ?? null });
-      return value ?? hit?.value ?? null;
+      return cached(hash, `${base()}/avatar/${hash}?s=${AVATAR_PX}&d=404`);
+    },
+    /** For a photo address written in the CV (basics.image): fetched only if it passes fetchablePhotoUrl, else null. */
+    async getUrl(address?: string): Promise<string | null> {
+      const url = address ? fetchablePhotoUrl(address, base()) : null;
+      return url ? cached(`url:${url.href}`, url.href) : null;
     },
     refresh: () => cache.clear(),
   };

@@ -37,7 +37,7 @@ export function locationLine(loc?: { city?: string; region?: string; countryCode
   return [loc?.city, loc?.region, loc?.countryCode].filter(Boolean).join(', ');
 }
 
-export type IconName = 'github' | 'linkedin' | 'email' | 'web' | 'copy' | 'check' | 'close' | 'refresh';
+export type IconName = 'github' | 'linkedin' | 'email' | 'web' | 'copy' | 'check' | 'close' | 'refresh' | 'download' | 'map-pin';
 
 /** Picks a brand icon for a JSON Resume profile, by network name or, failing that, by the link's host. */
 export function profileIcon(p: { network?: string; url?: string }): 'github' | 'linkedin' | null {
