@@ -28,6 +28,10 @@ function secretProblem(name: string, value: string, minLength: number): string |
 export const adminTokenProblem = (value = config.adminToken) => secretProblem('ADMIN_TOKEN', value, MIN_ADMIN_TOKEN_LENGTH);
 export const sessionSecretProblem = (value = config.sessionSecret) => secretProblem('SESSION_SECRET', value, MIN_SESSION_SECRET_LENGTH);
 
+export const MIN_METRICS_TOKEN_LENGTH = 16;
+/** Why /metrics must stay off (unset, placeholder or too short), or null if the token is fine. */
+export const metricsTokenProblem = (value = config.metricsToken) => secretProblem('METRICS_TOKEN', value, MIN_METRICS_TOKEN_LENGTH);
+
 /** First configuration problem that blocks admin login, or null. */
 export function adminConfigProblem(): string | null {
   return adminTokenProblem() ?? sessionSecretProblem();

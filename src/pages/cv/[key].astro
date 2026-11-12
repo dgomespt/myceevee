@@ -5,10 +5,12 @@ import { getDb } from '../../lib/db';
 import { isPublic } from '../../lib/links';
 import { isCvKey } from '../../lib/config';
 import { loadCv } from '../../lib/gist';
+import { trackView } from '../../lib/metrics';
 
 const { key } = Astro.params;
 const cvKey = isCvKey(key) && isPublic(getDb(), key) ? key : null;
 const loaded = cvKey ? await loadCv(cvKey) : null;
 Astro.response.status = loaded ? loaded.status : 404;
+if (cvKey && loaded?.result.ok) trackView(getDb(), { cvKey, kind: 'page', request: Astro.request, clientAddress: Astro.clientAddress });
 ---
 {cvKey && loaded ? <CvView cvKey={cvKey} result={loaded.result} pdfHref={`/cv/${cvKey}.pdf`} /> : <Unavailable title="Not found" />}

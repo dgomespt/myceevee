@@ -17,6 +17,7 @@ const env = (name: string, fallback = ''): string => process.env[name] ?? fallba
 
 export const DEFAULT_GIST_CACHE_MS = 60 * 60_000; // 1 hour
 export const DEFAULT_AVATAR_CACHE_MS = 24 * 60 * 60_000; // 1 day
+export const DEFAULT_METRICS_RETENTION_DAYS = 90;
 
 const warned = new Set<string>();
 /** Reads a duration env var such as "30m" or "6h"; falls back to the default (with a one-time warning) when invalid. */
@@ -62,6 +63,20 @@ export const config = {
     };
   },
   get adminToken() { return env('ADMIN_TOKEN'); },
+  /** Bearer token for GET /metrics. Unset (or weak) = the endpoint is off and answers 404. */
+  get metricsToken() { return env('METRICS_TOKEN'); },
+  /** How many days per-day unique-visitor rows are kept (whole days, 1 to 3650; default 90). View totals are never pruned. */
+  get metricsRetentionDays(): number {
+    const raw = env('METRICS_RETENTION_DAYS').trim();
+    if (raw === '') return DEFAULT_METRICS_RETENTION_DAYS;
+    const n = Number(raw);
+    if (Number.isInteger(n) && n >= 1 && n <= 3650) return n;
+    if (!warned.has('METRICS_RETENTION_DAYS')) {
+      warned.add('METRICS_RETENTION_DAYS');
+      console.warn(`[myceevee] METRICS_RETENTION_DAYS="${raw}" is not a whole number of days (1 to 3650). Using ${DEFAULT_METRICS_RETENTION_DAYS}.`);
+    }
+    return DEFAULT_METRICS_RETENTION_DAYS;
+  },
   get sessionSecret() { return env('SESSION_SECRET'); },
   get baseUrl() { return env('PUBLIC_BASE_URL', 'http://localhost:4321').replace(/\/+$/, ''); },
   get databasePath() { return env('DATABASE_PATH', './data/myceevee.db'); },

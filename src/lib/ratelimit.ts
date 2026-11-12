@@ -50,6 +50,8 @@ export function createFailureLimiter(max: number, windowMs: number, now: () => n
 export const linkLimiter = createRateLimiter(60, 60_000);
 /** 5 wrong tokens from one address locks login for that address for 15 minutes. */
 export const loginFailures = createFailureLimiter(5, 15 * 60_000);
+/** 10 wrong /metrics tokens from one address locks that address out of /metrics for 15 minutes. */
+export const metricsFailures = createFailureLimiter(10, 15 * 60_000);
 
 /** Client key for rate limiting. Only trusts X-Forwarded-For when TRUST_PROXY=1 (i.e. behind your own reverse proxy). */
 export function clientKey(request: Request, fallback: string): string {

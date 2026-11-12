@@ -22,4 +22,8 @@ RUN mkdir -p /data && chown node:node /data && chmod 0777 /data
 USER node
 VOLUME /data
 EXPOSE 8080
+# The slim image has no curl or wget, so probe with Node's built-in fetch. Marks the container unhealthy after
+# 3 failed probes; start-period gives the app time to boot before failures count.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/healthz',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 CMD ["node", "dist/server/entry.mjs"]

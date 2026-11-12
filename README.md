@@ -1,5 +1,7 @@
 # myceevee
 
+[![CI](https://github.com/dgomespt/myceevee/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dgomespt/myceevee/actions/workflows/ci.yml)
+
 A tiny self-hosted microsite for your CV. It keeps two versions, a **one-page** CV and a **full** CV, both written
 in the [JSON Resume](https://jsonresume.org/schema) format and read from a GitHub gist. You decide, per CV:
 
@@ -76,6 +78,8 @@ Restart after editing `.env`; it is only read at startup.
 | `FULL_SECTIONS` | unset (everything) | trim the full CV the same way |
 | `ADMIN_TOKEN` | required | admin login, 12+ characters |
 | `SESSION_SECRET` | required | signs the session cookie, 32+ characters |
+| `METRICS_TOKEN` | unset (`/metrics` off) | bearer token for the Prometheus endpoint, 16+ characters (see "Metrics") |
+| `METRICS_RETENTION_DAYS` | `90` | days of per-day unique-visitor records to keep (1 to 3650); view totals are kept forever |
 | `PUBLIC_BASE_URL` | `http://localhost:4321` | public origin; `https://` also marks the session cookie `Secure` |
 | `HOME_REDIRECT_URL` | unset | where `/` sends visitors while nothing is public (http/https only) |
 | `GIST_CACHE_TTL` | `1h` | how long the gist is cached |
@@ -150,6 +154,10 @@ The image listens on port 8080 (override with `-e PORT=...`) and runs as the non
 as another user, add `--user <uid>:<gid>`; `/data` in the image is writable by any UID, but a bind-mounted host
 directory must be writable by that user.
 
+The image has a built-in health check: `GET /healthz` returns `200 {"status":"ok"}` while the app is serving and its
+SQLite database answers, and `503` otherwise. Docker probes it every 30 seconds (`docker ps` shows `healthy` or
+`unhealthy`). It doesn't call GitHub, so a gist outage does not mark the container unhealthy.
+
 ## Using the admin page
 
 Open `/admin` and sign in with `ADMIN_TOKEN`.
@@ -160,6 +168,41 @@ Open `/admin` and sign in with `ADMIN_TOKEN`.
   shown **once**, because only a hash of it is stored. Copy it with the copy icon; the X to close the box unlocks once
   you have copied it. Active links are listed with their expiry and can be revoked.
 - **Refresh from gist:** drops the gist and photo caches so edits show up immediately.
+
+## Metrics
+
+Every time a CV is actually served it is counted: the page or the PDF, through its public address (`/cv/...`) or a
+short link (`/s/...`). Requests that get a 404, a 410 (expired link), a 429 or an error page are not counted, and
+neither are `HEAD` requests. Link-preview bots that fetch a short link look like a person, so they do count.
+
+- **Public CVs:** page views, PDF downloads and unique visitors. A visitor is an anonymous hash of the address and
+  browser, salted with the current UTC day, so the same person counts once per day and cannot be followed from one day
+  to the next. **No IP address or user agent is ever stored.** Per-day records are deleted after
+  `METRICS_RETENTION_DAYS` (90).
+- **Short links:** page views and PDF downloads per link, shown in `/admin` next to each link (with the last time it
+  was opened). The link's label is kept with the counts, so they stay available after the link has expired.
+- **Prometheus:** `GET /metrics`, in the Prometheus text format. It is **off** (404) until you set `METRICS_TOKEN` to a
+  strong value (`openssl rand -hex 16`); then it needs `Authorization: Bearer <token>`, and 10 wrong tokens lock an
+  address out for 15 minutes. It exposes your link labels, so keep the token private.
+
+  | Metric | Type | Labels |
+  |---|---|---|
+  | `myceevee_cv_views_total` | counter | `cv` (`full`, `one-page`), `kind` (`page`, `pdf`) |
+  | `myceevee_cv_unique_visitors_today` | gauge | `cv` |
+  | `myceevee_link_views_total` | counter | `cv`, `kind`, `label` |
+
+  Links that share a label are added together, and links without one are `Untitled`. Unique visitors are per day (a
+  gauge for today, UTC); Prometheus keeps the history. Example scrape config:
+
+  ```yaml
+  scrape_configs:
+    - job_name: myceevee
+      metrics_path: /metrics
+      authorization:
+        credentials: <METRICS_TOKEN>
+      static_configs:
+        - targets: ['cv.example.com']
+  ```
 
 ## Homepage and expired links
 
