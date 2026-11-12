@@ -7,12 +7,13 @@ in the [JSON Resume](https://jsonresume.org/schema) format and read from a GitHu
 - **Private:** hidden (404), but you can mint a **short link** (`/s/<token>`) with a lifetime. After it expires, or
   once you revoke it, visitors see a friendly landing page (HTTP 410) instead. Hand these to recruiters.
 
-**Requirements:** Node 22.23.4 or newer (what Astro requires), or just Docker.
+**Requirements:** `make` and Docker, nothing else. Node and npm never run on your machine: every `make` target that needs
+them runs inside a `node:24` container (the same as CI) as your user, with `node_modules` kept in the project folder.
 
 ## Quick start
 
 ```bash
-make setup    # installs dependencies, creates .env with a random ADMIN_TOKEN and SESSION_SECRET
+make setup    # installs dependencies (in Docker), creates .env with a random ADMIN_TOKEN and SESSION_SECRET
 # edit .env: set GIST_ID (see step 1)
 make dev      # http://localhost:4321, admin at http://localhost:4321/admin (sign in with ADMIN_TOKEN from .env)
 ```
@@ -21,14 +22,16 @@ make dev      # http://localhost:4321, admin at http://localhost:4321/admin (sig
 
 | Command | Does |
 |---|---|
-| `make dev` | dev server with live reload (`PORT=4400 make dev` for another port) |
-| `make start` | build and run the production server locally |
-| `make test` / `make check` | unit tests / type-check |
+| `make dev` | dev server with live reload, in Docker (`PORT=4400 make dev` for another port) |
+| `make start` | build, then run the production server in Docker |
+| `make lint` / `make test` / `make check` | ESLint / unit tests / type-check |
+| `make lock` | regenerate `package-lock.json` with the same npm as CI |
+| `make npm ARGS="install -D some-package"` | run any npm command in Docker, e.g. to add a dependency |
 | `make docker-build TAG=1.0.0` | build a tagged Docker image, `myceevee:1.0.0` (`IMAGE=name` to change the name). `TAG` is required |
 | `make docker-up` / `docker-down` / `docker-logs` | run with Docker Compose (state kept in `./data`; it builds its own image, separate from the tagged one) |
 | `make clear-cache` | refetch the gist now: clears the running server's gist and photo caches (`PORT=...` or `URL=...` if not on 4321) |
 | `make env` | create `.env` from `.env.example` if missing, with fresh secrets |
-| `make clean` | remove build output (keeps `node_modules`, `.env` and `./data`) |
+| `make clean` | remove build output (keeps `node_modules`, `.npm-cache`, `.env` and `./data`) |
 
 ## 1. Make the gist
 
@@ -116,15 +119,29 @@ warnings in `/admin` and the rest of the list still applies. `ONEPAGE_SECTIONS` 
 
 ```bash
 make docker-up      # Docker: state persists in ./data; set HOST_PORT in .env to change the host port
-# or locally
-make start          # builds, then runs with .env loaded
+# or build and run it straight from the source tree
+make start          # builds, then runs the production server in a Node container with .env loaded
 ```
 
-Note that `npm start` and `npm run dev` do **not** read `.env` (only the `make` targets do). If you run the server
-yourself, use `node --env-file=.env dist/server/entry.mjs`.
+Both need only Docker. If you ever run Node yourself, note that `npm start` and `npm run dev` do **not** read `.env`
+(the `make` targets load it for you); use `node --env-file=.env dist/server/entry.mjs`.
 
 For production put it behind HTTPS (Caddy, nginx, Traefik) and set `PUBLIC_BASE_URL` to the `https://` origin. If the
 proxy sets `X-Forwarded-For`, set `TRUST_PROXY=1`; otherwise leave it unset.
+
+### Prebuilt image
+
+Every push to `main` and every `v*` tag publishes an image to GitHub's container registry (see
+[Continuous integration](#continuous-integration)), so you can skip building it yourself:
+
+```bash
+docker run -d -p 4321:4321 --env-file .env -e DATABASE_PATH=/data/myceevee.db -v "$PWD/data:/data" \
+  ghcr.io/<owner>/<repo>:latest
+```
+
+Use a version tag (`:1.2.3`) instead of `:latest` to pin a release. The `-e DATABASE_PATH` is needed because `.env`
+points it at a path that only makes sense outside the container. New packages on ghcr.io start out private: if you want
+others to pull the image without logging in, set the package to public once under the package's settings on GitHub.
 
 ## Using the admin page
 
@@ -177,6 +194,25 @@ Open `/admin` and sign in with `ADMIN_TOKEN`.
   *may* print their header and footer on it; untick "Headers and footers" in the print dialog for a clean copy.
   Headings stay with their content and bullets aren't split across pages. A downloadable PDF would remove the
   dependence on print-dialog settings.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on pushes to `main`, on `v*` tags and on pull requests:
+
+1. **Lint** (ESLint, plus `astro check` for types) and **Test** (the unit tests) run in parallel.
+2. **Build container image** runs only if both pass:
+   - **Pull requests** only build the image, which proves the Dockerfile works. Nothing is published.
+   - **Pushes to `main`** publish `ghcr.io/<owner>/<repo>` tagged `latest` and `sha-<commit>`.
+   - **Tags like `v1.2.3`** publish `1.2.3`, `1.2` and `sha-<commit>`. Cut a release with
+     `git tag v1.2.3 && git push origin v1.2.3`.
+
+Publishing uses the built-in `GITHUB_TOKEN`, so there are no secrets to configure. The workflow never contains
+credentials, and the image name is derived from the repository at run time.
+
+**Changing dependencies:** use `make npm ARGS="install -D some-package"` (and `make lock` to just refresh the
+lockfile), never npm on your own machine. Every job installs with `npm ci`, and an older npm can write a lockfile that
+the newer npm in CI rejects ("Missing: @emnapi/core ... from lock file"). The container uses the same npm as CI, so
+the lockfile it writes always works there.
 
 ## Development
 
