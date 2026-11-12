@@ -1,4 +1,6 @@
-## Unreleased
+## 0.1.0
+- New `GET /healthz` endpoint: `200 {"status":"ok"}` while the app is serving and its SQLite database answers, `503` otherwise. It doesn't call GitHub, so a gist outage doesn't count as unhealthy. The Docker image uses it for a built-in `HEALTHCHECK` (every 30 s, using Node's `fetch`, so no extra packages are needed).
+- README shows a CI status badge and documents the health check.
 - The location in a CV's header now has a map-pin icon, on the page and in the PDF.
 - Each CV page has a "Download PDF" button, and the PDFs are also served at `/cv/<key>.pdf` and `/s/<token>.pdf`. They follow the same rules as the pages: a private CV's PDF is a 404, and a short link's PDF works only while the link does (same rate limit, same `noindex`/`no-store` headers, same 410 for expired, revoked and unknown links). Built with pdfkit, so the image needs no extra system packages and still runs as a non-root user. The one-page PDF shrinks its text (down to about 8 pt) to stay on one A4 sheet. The header has the same email, website, GitHub and LinkedIn icons as the page, and a PDF of more than one page shows "Page x of y" in the footer. Pages after the first start with a slim header: the name, then the email, website and profile addresses as plain text (still clickable on screen), so they stay readable when printed. The Skills table is kept together on one page.
 - A CV's `basics.image` is now also used in its PDF when it is a Gravatar address. The server fetches no other host named in the gist.
@@ -7,6 +9,4 @@
 - CI publishes the container image to ghcr.io: `latest` and `sha-<commit>` from `main`, version tags from `v*` tags. Pull requests only build it.
 - Ignore the npm download cache (`.npm-cache`); remove a stray `.pkg.bak` file.
 - README documents the Docker workflow, CI publishing and the prebuilt image.
-
-## 0.1.0
 - Initial commit

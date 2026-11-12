@@ -1,5 +1,7 @@
 # myceevee
 
+[![CI](https://github.com/dgomespt/myceevee/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dgomespt/myceevee/actions/workflows/ci.yml)
+
 A tiny self-hosted microsite for your CV. It keeps two versions, a **one-page** CV and a **full** CV, both written
 in the [JSON Resume](https://jsonresume.org/schema) format and read from a GitHub gist. You decide, per CV:
 
@@ -149,6 +151,10 @@ others to pull the image without logging in, set the package to public once unde
 The image listens on port 8080 (override with `-e PORT=...`) and runs as the non-root `node` user (UID 1000). To run it
 as another user, add `--user <uid>:<gid>`; `/data` in the image is writable by any UID, but a bind-mounted host
 directory must be writable by that user.
+
+The image has a built-in health check: `GET /healthz` returns `200 {"status":"ok"}` while the app is serving and its
+SQLite database answers, and `503` otherwise. Docker probes it every 30 seconds (`docker ps` shows `healthy` or
+`unhealthy`). It doesn't call GitHub, so a gist outage does not mark the container unhealthy.
 
 ## Using the admin page
 
